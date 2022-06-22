@@ -5,6 +5,7 @@
 
 #![no_std]
 
+use core::mem::replace;
 #[cfg(not(windows))]
 use libc::{c_long, time_t};
 use num_traits::Num;
@@ -27,6 +28,31 @@ impl MonoTime {
     pub fn delta_ms_u64(self, prev: MonoTime) -> Option<u64> { self.delta_ms(prev) }
 
     pub fn delta_ms_u128(self, prev: MonoTime) -> Option<u128> { self.delta_ms(prev) }
+
+    pub fn split_ms_u8(&mut self) -> Option<u8> {
+        let prev = replace(self, Self::get());
+        self.delta_ms_u8(prev)
+    }
+
+    pub fn split_ms_u16(&mut self) -> Option<u16> {
+        let prev = replace(self, Self::get());
+        self.delta_ms_u16(prev)
+    }
+
+    pub fn split_ms_u32(&mut self) -> Option<u32> {
+        let prev = replace(self, Self::get());
+        self.delta_ms_u32(prev)
+    }
+
+    pub fn split_ms_u64(&mut self) -> Option<u64> {
+        let prev = replace(self, Self::get());
+        self.delta_ms_u64(prev)
+    }
+
+    pub fn split_ms_u128(&mut self) -> Option<u128> {
+        let prev = replace(self, Self::get());
+        self.delta_ms_u128(prev)
+    }
 
     #[cfg(windows)]
     #[inline]
