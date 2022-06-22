@@ -1,4 +1,4 @@
-![maintenance: actively developed](https://img.shields.io/badge/maintenance-actively--developed-brightgreen.svg)
+![maintenance: experimental](https://img.shields.io/badge/maintenance-experimental-blue.svg)
 
 # timer-no-std
 
