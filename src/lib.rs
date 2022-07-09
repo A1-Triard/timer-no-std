@@ -6,19 +6,127 @@
 #![no_std]
 
 use core::mem::replace;
+use educe::Educe;
 #[cfg(not(windows))]
 use libc::{c_long, time_t};
 use num_traits::Num;
 
+pub struct MonoClock(());
+
+impl MonoClock {
+    /// # Safety
+    ///
+    /// This function is safe and may be invoked unconditionally.
+    pub unsafe fn new() -> Self {
+        MonoClock(())
+    }
+
+    pub fn sleep_ms_u8(&self, ms: u8) { self.sleep_ms(ms); }
+
+    pub fn sleep_ms_u16(&self, ms: u16) { self.sleep_ms(ms); }
+
+    pub fn sleep_ms_u32(&self, ms: u32) { self.sleep_ms(ms); }
+
+    pub fn sleep_ms_u64(&self, ms: u64) { self.sleep_ms(ms); }
+
+    pub fn sleep_ms_u128(&self, ms: u128) { self.sleep_ms(ms); }
+
+    #[cfg(windows)]
+    pub fn time(&self) -> MonoTime {
+        use winapi::um::sysinfoapi::GetTickCount64;
+
+        MonoTime {
+            ticks: unsafe { GetTickCount64() },
+            clock: self
+        }
+    }
+
+    #[cfg(not(windows))]
+    pub fn time(&self) -> MonoTime {
+        use core::mem::MaybeUninit;
+        use libc::{CLOCK_MONOTONIC, clock_gettime};
+
+        let mut time = MaybeUninit::uninit();
+        assert_eq!(unsafe { clock_gettime(CLOCK_MONOTONIC, time.as_mut_ptr()) }, 0);
+        let time = unsafe { time.assume_init() };
+        MonoTime {
+            s: time.tv_sec,
+            ms: (time.tv_nsec / 1_000_000) as i16,
+            clock: self
+        }
+    }
+
+    #[cfg(windows)]
+    #[inline]
+    fn sleep_ms<T: Num + Copy>(&self, mut ms: T) where u32: TryInto<T>, T: TryInto<u32> {
+        use winapi::um::synchapi::Sleep;
+
+        while ms != T::zero() {
+            let (sleep, last) = if let Ok(ms_u32) = ms.try_into() {
+                (ms_u32, T::zero())
+            } else {
+                (u32::MAX, ms - u32::MAX.try_into().unwrap_or_else(|_| unreachable!()))
+            };
+            unsafe { Sleep(sleep); }
+            ms = last;
+        }
+    }
+
+    #[cfg(not(windows))]
+    #[inline]
+    fn sleep_ms<T: Num + Copy>(
+        &self,
+        mut ms: T
+    ) where u16: TryInto<T>, T: TryInto<time_t>, time_t: TryInto<T>, T: TryInto<c_long> {
+        use core::ptr::null_mut;
+        use libc::{nanosleep, timespec};
+
+        while ms != T::zero() {
+            let (sleep_s, sleep_ms, last): (time_t, c_long, T) = if let Ok(thousand) = 1000u16.try_into() {
+                let s = ms / thousand;
+                if let Ok(s_time_t) = s.try_into() {
+                    (
+                        s_time_t,
+                        (ms % thousand).try_into().unwrap_or_else(|_| unreachable!()),
+                        T::zero()
+                    )
+                } else {
+                    (
+                        time_t::MAX,
+                        (ms % thousand).try_into().unwrap_or_else(|_| unreachable!()),
+                        (s - time_t::MAX.try_into().unwrap_or_else(|_| unreachable!())) * thousand 
+                    )
+                }
+            } else {
+                (0, ms.try_into().unwrap_or_else(|_| unreachable!()), T::zero())
+            };
+            let sleep = timespec { tv_sec: sleep_s, tv_nsec: sleep_ms * 1_000_000 };
+            unsafe { nanosleep(&sleep as *const _, null_mut()); }
+            ms = last;
+        }
+    }
+}
+
 #[cfg(windows)]
-#[derive(Debug, Clone, Copy)]
-pub struct MonoTime(u64);
+#[derive(Educe, Clone, Copy)]
+#[educe(Debug)]
+pub struct MonoTime<'a> {
+    ticks: u64,
+    #[educe(Debug(ignore))]
+    clock: &'a MonoClock,
+}
 
 #[cfg(not(windows))]
-#[derive(Debug, Clone, Copy)]
-pub struct MonoTime { s: time_t, ms: i16 }
+#[derive(Educe, Clone, Copy)]
+#[educe(Debug)]
+pub struct MonoTime<'a> {
+    s: time_t,
+    ms: i16,
+    #[educe(Debug(ignore))]
+    clock: &'a MonoClock,
+}
 
-impl MonoTime {
+impl<'a> MonoTime<'a> {
     pub fn delta_ms_u8(self, prev: MonoTime) -> Option<u8> { self.delta_ms(prev) }
 
     pub fn delta_ms_u16(self, prev: MonoTime) -> Option<u16> { self.delta_ms(prev) }
@@ -30,34 +138,34 @@ impl MonoTime {
     pub fn delta_ms_u128(self, prev: MonoTime) -> Option<u128> { self.delta_ms(prev) }
 
     pub fn split_ms_u8(&mut self) -> Option<u8> {
-        let prev = replace(self, Self::get());
+        let prev = replace(self, self.clock.time());
         self.delta_ms_u8(prev)
     }
 
     pub fn split_ms_u16(&mut self) -> Option<u16> {
-        let prev = replace(self, Self::get());
+        let prev = replace(self, self.clock.time());
         self.delta_ms_u16(prev)
     }
 
     pub fn split_ms_u32(&mut self) -> Option<u32> {
-        let prev = replace(self, Self::get());
+        let prev = replace(self, self.clock.time());
         self.delta_ms_u32(prev)
     }
 
     pub fn split_ms_u64(&mut self) -> Option<u64> {
-        let prev = replace(self, Self::get());
+        let prev = replace(self, self.clock.time());
         self.delta_ms_u64(prev)
     }
 
     pub fn split_ms_u128(&mut self) -> Option<u128> {
-        let prev = replace(self, Self::get());
+        let prev = replace(self, self.clock.time());
         self.delta_ms_u128(prev)
     }
 
     #[cfg(windows)]
     #[inline]
     fn delta_ms<T>(self, prev: MonoTime) -> Option<T> where u64: TryInto<T> {
-        self.0.checked_sub(prev.0).unwrap().try_into().ok()
+        self.ticks.checked_sub(prev.ticks).unwrap().try_into().ok()
     }
 
     #[cfg(not(windows))]
@@ -86,82 +194,5 @@ impl MonoTime {
         let s = s * thousand;
         if T::max_value() - s < ms { return None; }
         Some(s + ms)
-    }
-
-    #[cfg(windows)]
-    pub fn get() -> Self {
-        use winapi::um::sysinfoapi::GetTickCount64;
-
-        MonoTime(unsafe { GetTickCount64() })
-    }
-
-    #[cfg(not(windows))]
-    pub fn get() -> Self {
-        use core::mem::MaybeUninit;
-        use libc::{CLOCK_MONOTONIC, clock_gettime};
-
-        let mut time = MaybeUninit::uninit();
-        assert_eq!(unsafe { clock_gettime(CLOCK_MONOTONIC, time.as_mut_ptr()) }, 0);
-        let time = unsafe { time.assume_init() };
-        MonoTime { s: time.tv_sec, ms: (time.tv_nsec / 1_000_000) as i16 }
-    }
-}
-
-pub fn sleep_ms_u8(ms: u8) { sleep_ms(ms); }
-
-pub fn sleep_ms_u16(ms: u16) { sleep_ms(ms); }
-
-pub fn sleep_ms_u32(ms: u32) { sleep_ms(ms); }
-
-pub fn sleep_ms_u64(ms: u64) { sleep_ms(ms); }
-
-pub fn sleep_ms_u128(ms: u128) { sleep_ms(ms); }
-
-#[cfg(windows)]
-#[inline]
-fn sleep_ms<T: Num + Copy>(mut ms: T) where u32: TryInto<T>, T: TryInto<u32> {
-    use winapi::um::synchapi::Sleep;
-
-    while ms != T::zero() {
-        let (sleep, last) = if let Ok(ms_u32) = ms.try_into() {
-            (ms_u32, T::zero())
-        } else {
-            (u32::MAX, ms - u32::MAX.try_into().unwrap_or_else(|_| unreachable!()))
-        };
-        unsafe { Sleep(sleep); }
-        ms = last;
-    }
-}
-
-#[cfg(not(windows))]
-#[inline]
-fn sleep_ms<T: Num + Copy>(
-    mut ms: T
-) where u16: TryInto<T>, T: TryInto<time_t>, time_t: TryInto<T>, T: TryInto<c_long> {
-    use core::ptr::null_mut;
-    use libc::{nanosleep, timespec};
-
-    while ms != T::zero() {
-        let (sleep_s, sleep_ms, last): (time_t, c_long, T) = if let Ok(thousand) = 1000u16.try_into() {
-            let s = ms / thousand;
-            if let Ok(s_time_t) = s.try_into() {
-                (
-                    s_time_t,
-                    (ms % thousand).try_into().unwrap_or_else(|_| unreachable!()),
-                    T::zero()
-                )
-            } else {
-                (
-                    time_t::MAX,
-                    (ms % thousand).try_into().unwrap_or_else(|_| unreachable!()),
-                    (s - time_t::MAX.try_into().unwrap_or_else(|_| unreachable!())) * thousand 
-                )
-            }
-        } else {
-            (0, ms.try_into().unwrap_or_else(|_| unreachable!()), T::zero())
-        };
-        let sleep = timespec { tv_sec: sleep_s, tv_nsec: sleep_ms * 1_000_000 };
-        unsafe { nanosleep(&sleep as *const _, null_mut()); }
-        ms = last;
     }
 }
