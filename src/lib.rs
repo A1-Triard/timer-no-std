@@ -5,20 +5,41 @@
 
 #![no_std]
 
+#[cfg(target_os="dos")]
+use core::arch::asm;
 use core::mem::replace;
 use educe::Educe;
-#[cfg(not(windows))]
+#[cfg(all(not(target_os="dos"), not(windows)))]
 use libc::{c_long, time_t};
 use num_traits::Num;
+#[cfg(target_os="dos")]
+use pc_timer::Timer;
 
+#[cfg(not(target_os="dos"))]
 pub struct MonoClock(());
+
+#[cfg(target_os="dos")]
+pub struct MonoClock(Timer);
 
 impl MonoClock {
     /// # Safety
     ///
-    /// This function is safe and may be invoked unconditionally.
+    /// This function may not be called while another [`MonoClock`] instance is alive.
+    ///
+    /// Also, if compiled with `cfg(target_os="dos")` it should be guaranteed that
+    /// it is executing on an effectively single-core processor.
     pub unsafe fn new() -> Self {
+        Self::new_raw()
+    }
+
+    #[cfg(not(target_os="dos"))]
+    unsafe fn new_raw() -> Self {
         MonoClock(())
+    }
+
+    #[cfg(target_os="dos")]
+    unsafe fn new_raw() -> Self {
+        MonoClock(Timer::new(125))
     }
 
     pub fn sleep_ms_u8(&self, ms: u8) { self.sleep_ms(ms); }
@@ -29,9 +50,15 @@ impl MonoClock {
 
     pub fn sleep_ms_u64(&self, ms: u64) { self.sleep_ms(ms); }
 
-    pub fn sleep_ms_u128(&self, ms: u128) { self.sleep_ms(ms); }
+    #[cfg(target_os="dos")]
+    pub fn time(&self) -> MonoTime {
+        MonoTime {
+            ticks: self.0.ticks(),
+            clock: self
+        }
+    }
 
-    #[cfg(windows)]
+    #[cfg(all(not(target_os="dos"), windows))]
     pub fn time(&self) -> MonoTime {
         use winapi::um::sysinfoapi::GetTickCount64;
 
@@ -41,7 +68,7 @@ impl MonoClock {
         }
     }
 
-    #[cfg(not(windows))]
+    #[cfg(all(not(target_os="dos"), not(windows)))]
     pub fn time(&self) -> MonoTime {
         use core::mem::MaybeUninit;
         use libc::{CLOCK_MONOTONIC, clock_gettime};
@@ -56,7 +83,27 @@ impl MonoClock {
         }
     }
 
-    #[cfg(windows)]
+    #[cfg(target_os="dos")]
+    #[inline]
+    fn sleep_ms<T: Num + Copy>(&self, mut ms: T) where u64: TryInto<T>, T: TryInto<u64> {
+        while ms != T::zero() {
+            let (sleep, last) = if let Ok(ms_u64) = ms.try_into() {
+                (ms_u64, T::zero())
+            } else {
+                (u64::MAX, ms - u64::MAX.try_into().unwrap_or_else(|_| unreachable!()))
+            };
+            let start = self.time();
+            loop {
+                if self.time().delta_ms_u64(start).unwrap() > sleep { break; }
+                for _ in 0 .. 1000 {
+                    unsafe { asm!("nop"); }
+                }
+            }
+            ms = last;
+        }
+    }
+
+    #[cfg(all(not(target_os="dos"), windows))]
     #[inline]
     fn sleep_ms<T: Num + Copy>(&self, mut ms: T) where u32: TryInto<T>, T: TryInto<u32> {
         use winapi::um::synchapi::Sleep;
@@ -72,7 +119,7 @@ impl MonoClock {
         }
     }
 
-    #[cfg(not(windows))]
+    #[cfg(all(not(target_os="dos"), not(windows)))]
     #[inline]
     fn sleep_ms<T: Num + Copy>(
         &self,
@@ -107,7 +154,7 @@ impl MonoClock {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(target_os="dos", windows))]
 #[derive(Educe, Clone, Copy)]
 #[educe(Debug)]
 pub struct MonoTime<'a> {
@@ -116,7 +163,7 @@ pub struct MonoTime<'a> {
     clock: &'a MonoClock,
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(target_os="dos"), not(windows)))]
 #[derive(Educe, Clone, Copy)]
 #[educe(Debug)]
 pub struct MonoTime<'a> {
@@ -162,13 +209,19 @@ impl<'a> MonoTime<'a> {
         self.delta_ms_u128(prev)
     }
 
-    #[cfg(windows)]
+    #[cfg(target_os="dos")]
+    #[inline]
+    fn delta_ms<T>(self, prev: MonoTime) -> Option<T> where u64: TryInto<T> {
+        self.ticks.wrapping_sub(prev.ticks).wrapping_mul(8).try_into().ok()
+    }
+
+    #[cfg(all(not(target_os="dos"), windows))]
     #[inline]
     fn delta_ms<T>(self, prev: MonoTime) -> Option<T> where u64: TryInto<T> {
         self.ticks.checked_sub(prev.ticks).unwrap().try_into().ok()
     }
 
-    #[cfg(not(windows))]
+    #[cfg(all(not(target_os="dos"), not(windows)))]
     #[inline]
     fn delta_ms<T: Num + num_traits::Bounded + Ord + Copy>(
         self,
