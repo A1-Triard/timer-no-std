@@ -23,7 +23,7 @@ libc = { version = "0.2.126", default-features = false }
 winapi = { version = "0.3.9", features = ["synchapi", "sysinfoapi"] }
 
 [target.'cfg(target_os="dos")'.dependencies]
-pc-timer = "0.1.1"
+pc-timer = "0.1.4"
 
 [badges]
 maintenance = { status = "experimental" }
