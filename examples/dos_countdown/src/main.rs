@@ -1,6 +1,6 @@
 #![feature(extern_types)]
 
-//#![deny(warnings)]
+#![deny(warnings)]
 
 #![windows_subsystem="console"]
 #![no_std]
@@ -50,9 +50,7 @@ extern "stdcall" fn mainCRTStartup(_: *const PEB) -> u64 {
             }
             seconds += 1;
         } else {
-            //println!("{wait}");
             clock.sleep_ms_u16(wait.try_into().unwrap());
-            panic!("XXX");
         }
     }
     0

@@ -1,4 +1,4 @@
-//#![deny(warnings)]
+#![deny(warnings)]
 #![doc(test(attr(deny(warnings))))]
 #![doc(test(attr(allow(dead_code))))]
 #![doc(test(attr(allow(unused_variables))))]
@@ -92,19 +92,12 @@ impl MonoClock {
             } else {
                 (u64::MAX, ms - u64::MAX.try_into().unwrap_or_else(|_| unreachable!()))
             };
-            //panic!("s: {sleep}");
             let start = self.time();
             loop {
-                let x = self.time().delta_ms_u64(start).unwrap();
-                if x >= 48 {
-                panic!("{x}");
+                for _ in 0 .. 64 {
+                    unsafe { asm!("nop"); }
                 }
-                unsafe { asm!("sti"); }
-                //for _ in 0 .. 64 {
-                //    unsafe { asm!("nop"); }
-                //}
             }
-            panic!("sleep");
             ms = last;
         }
     }
