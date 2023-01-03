@@ -35,7 +35,7 @@ use timer_no_std::MonoClock;
 #[no_mangle]
 extern "stdcall" fn mainCRTStartup(_: *const PEB) -> u64 {
     let clock = unsafe { MonoClock::new() };
-    let mut seconds = 1;
+    let mut seconds = 0;
     let start = clock.time();
     loop {
         let now = clock.time();
@@ -43,10 +43,10 @@ extern "stdcall" fn mainCRTStartup(_: *const PEB) -> u64 {
             .and_then(|x| i16::try_from(x).ok())
             .map_or(0, |passed| max(0, seconds * 1000 - passed));
         if wait == 0 {
-            if seconds == 11 {
+            if seconds == 10 {
                 break;
             } else {
-                println!("{}!", 11 - seconds);
+                println!("{}!", 10 - seconds);
             }
             seconds += 1;
         } else {
