@@ -94,6 +94,7 @@ impl MonoClock {
             };
             let start = self.time();
             loop {
+                if self.time().delta_ms_u64(start).unwrap() > sleep { break; }
                 for _ in 0 .. 64 {
                     unsafe { asm!("nop"); }
                 }
