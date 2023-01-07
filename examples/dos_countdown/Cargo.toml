@@ -15,13 +15,13 @@ panic = "abort"
 strip = true
 
 [dependencies]
-dos-cp = "0.2.1"
-dos-errno-and-panic = "0.0.1"
-exit-no-std = "0.1.4"
+dos-cp = "0.3.0"
+dos-errno-and-panic = "0.0.3"
+exit-no-std = "0.2.0"
 panicking = { version = "0.4.0", default-features = false, features = ["abort"] }
 pc-atomics = "0.0.2"
 rlibc = "1.0.0"
 timer-no-std = { path = "../.." }
 
 [build-dependencies]
-dos-cp-generator = "0.2.1"
+dos-cp-generator = "0.3.0"
