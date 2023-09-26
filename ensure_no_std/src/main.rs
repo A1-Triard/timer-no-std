@@ -13,7 +13,7 @@ use timer_no_std::MonoClock;
 extern { }
 
 #[panic_handler]
-pub extern fn panic(_info: &PanicInfo) -> ! {
+fn panic(_info: &PanicInfo) -> ! {
     exit(99)
 }
 
