@@ -27,7 +27,7 @@ impl MonoClock {
     /// This function may not be called while another [`MonoClock`] instance is alive.
     ///
     /// Also, if compiled with `cfg(target_os="dos")` it should be guaranteed that
-    /// it is executing on an effectively single-core processor.
+    /// it is compiled for an effectively single-core processor.
     pub unsafe fn new() -> Self {
         Self::new_raw()
     }
