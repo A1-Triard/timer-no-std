@@ -1,8 +1,8 @@
 [package]
 edition = "2021"
 name = "timer-no-std"
-version = "0.3.4"
-rust-version = "1.59"
+version = "0.4.0"
+rust-version = "1.71"
 authors = ["warlock <internalmike@gmail.com>"]
 description = "Cross-platform interface to a monotonic clock and the corresponding thread sleep method."
 readme = "README.md"
