@@ -8,7 +8,6 @@
 #[cfg(target_os="dos")]
 use core::arch::asm;
 use core::mem::replace;
-use educe::Educe;
 #[cfg(all(not(target_os="dos"), not(windows)))]
 use libc::{c_long, time_t};
 use num_traits::Num;
@@ -54,7 +53,6 @@ impl MonoClock {
     pub fn time(&self) -> MonoTime {
         MonoTime {
             ticks: self.0.ticks(),
-            clock: self
         }
     }
 
@@ -64,7 +62,6 @@ impl MonoClock {
 
         MonoTime {
             ticks: unsafe { GetTickCount64() },
-            clock: self
         }
     }
 
@@ -79,7 +76,6 @@ impl MonoClock {
         MonoTime {
             s: time.tv_sec,
             ms: (time.tv_nsec / 1_000_000) as i16,
-            clock: self
         }
     }
 
@@ -155,25 +151,19 @@ impl MonoClock {
 }
 
 #[cfg(any(target_os="dos", windows))]
-#[derive(Educe, Clone, Copy)]
-#[educe(Debug)]
-pub struct MonoTime<'a> {
+#[derive(Debug, Clone, Copy)]
+pub struct MonoTime {
     ticks: u64,
-    #[educe(Debug(ignore))]
-    clock: &'a MonoClock,
 }
 
 #[cfg(all(not(target_os="dos"), not(windows)))]
-#[derive(Educe, Clone, Copy)]
-#[educe(Debug)]
-pub struct MonoTime<'a> {
+#[derive(Debug, Clone, Copy)]
+pub struct MonoTime {
     s: time_t,
     ms: i16,
-    #[educe(Debug(ignore))]
-    clock: &'a MonoClock,
 }
 
-impl<'a> MonoTime<'a> {
+impl MonoTime {
     pub fn delta_ms_u8(self, prev: MonoTime) -> Option<u8> { self.delta_ms(prev) }
 
     pub fn delta_ms_u16(self, prev: MonoTime) -> Option<u16> { self.delta_ms(prev) }
@@ -184,28 +174,28 @@ impl<'a> MonoTime<'a> {
 
     pub fn delta_ms_u128(self, prev: MonoTime) -> Option<u128> { self.delta_ms(prev) }
 
-    pub fn split_ms_u8(&mut self) -> Option<u8> {
-        let prev = replace(self, self.clock.time());
+    pub fn split_ms_u8(&mut self, clock: &MonoClock) -> Option<u8> {
+        let prev = replace(self, clock.time());
         self.delta_ms_u8(prev)
     }
 
-    pub fn split_ms_u16(&mut self) -> Option<u16> {
-        let prev = replace(self, self.clock.time());
+    pub fn split_ms_u16(&mut self, clock: &MonoClock) -> Option<u16> {
+        let prev = replace(self, clock.time());
         self.delta_ms_u16(prev)
     }
 
-    pub fn split_ms_u32(&mut self) -> Option<u32> {
-        let prev = replace(self, self.clock.time());
+    pub fn split_ms_u32(&mut self, clock: &MonoClock) -> Option<u32> {
+        let prev = replace(self, clock.time());
         self.delta_ms_u32(prev)
     }
 
-    pub fn split_ms_u64(&mut self) -> Option<u64> {
-        let prev = replace(self, self.clock.time());
+    pub fn split_ms_u64(&mut self, clock: &MonoClock) -> Option<u64> {
+        let prev = replace(self, clock.time());
         self.delta_ms_u64(prev)
     }
 
-    pub fn split_ms_u128(&mut self) -> Option<u128> {
-        let prev = replace(self, self.clock.time());
+    pub fn split_ms_u128(&mut self, clock: &MonoClock) -> Option<u128> {
+        let prev = replace(self, clock.time());
         self.delta_ms_u128(prev)
     }
 
