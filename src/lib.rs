@@ -2,6 +2,7 @@
 #![doc(test(attr(deny(warnings))))]
 #![doc(test(attr(allow(dead_code))))]
 #![doc(test(attr(allow(unused_variables))))]
+#![allow(unknown_lints)]
 #![allow(clippy::multiple_bound_locations)]
 
 #![no_std]
