@@ -20,7 +20,7 @@ exit-no-std = "0.2.0"
 panic-no-std = "0.1.0"
 panicking = { version = "0.5.0", default-features = false, features = ["abort"] }
 pc-atomics = "0.0.2"
-rlibc = "1.0.0"
+rlibc-ext = "0.1.0"
 timer-no-std = { path = "../.." }
 
 [build-dependencies]
