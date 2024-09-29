@@ -13,17 +13,14 @@ mod no_std {
     fn panic_handler(info: &core::panic::PanicInfo) -> ! { panic_no_std::panic(info, b'P') }
 }
 
-extern {
-    type PEB;
-}
-
 use core::cmp::max;
 use dos_cp::println;
+use exit_no_std::exit;
 use timer_no_std::MonoClock;
 
 #[allow(non_snake_case)]
 #[no_mangle]
-extern "stdcall" fn mainCRTStartup(_: *const PEB) -> u64 {
+extern "C" fn mainCRTStartup() -> ! {
     let clock = unsafe { MonoClock::new() };
     let mut seconds = 0;
     let start = clock.time();
@@ -43,5 +40,5 @@ extern "stdcall" fn mainCRTStartup(_: *const PEB) -> u64 {
             clock.sleep_ms_u16(wait.try_into().unwrap());
         }
     }
-    0
+    exit(0)
 }
